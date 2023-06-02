@@ -60,7 +60,7 @@ impl Counter {
         let save = read_to_string(path).await?;
         // this is a very stupid thing
         let save = save.trim_end_matches('\n');
-        let counter: usize = dbg!(save).parse()?;
+        let counter: usize = save.parse()?;
 
         Ok(Counter(AtomicUsize::new(counter)))
     }
