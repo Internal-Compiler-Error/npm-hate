@@ -16,11 +16,20 @@ use tokio::fs::read_to_string;
 use tokio::signal;
 use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
+use tracing_subscriber::prelude::*;
+use tracing::{instrument, info};
+
+
 static COUNTER: OnceLock<Counter> = OnceLock::new();
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    color_eyre::install().unwrap();
+    color_eyre::install()?;
+    let tracing_layer = tracing_subscriber::fmt::layer().pretty();
+    tracing_subscriber::registry()
+        .with(tracing_layer)
+        .init();
+
 
     let counter = Counter::read_from_path(Path::new("./save")).await?;
     COUNTER
@@ -53,6 +62,7 @@ async fn increment_counter() {
     counter.increment();
 }
 
+#[tracing::instrument]
 async fn shutdown_signal() {
     let ctrl_c = async {
         signal::ctrl_c()
@@ -76,16 +86,16 @@ async fn shutdown_signal() {
         _ = terminate => {},
     }
 
-    println!("signal received, starting graceful shutdown");
+    info!("signal received, starting graceful shutdown");
 
-    println!("saving counter value to file");
+    info!("saving counter value to file");
     let counter = COUNTER.get().expect("COUNTER is initialized");
     let val = counter.get_val();
     tokio::fs::write("./save", val.to_string())
         .await
         .expect("Failed to write to save file");
 
-    println!("bye");
+    info!("bye");
 }
 
 #[derive(Debug, Serialize)]
