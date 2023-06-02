@@ -13,9 +13,9 @@ use std::{
     },
 };
 use tokio::fs::read_to_string;
+use tokio::signal;
 use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
-
 static COUNTER: OnceLock<Counter> = OnceLock::new();
 
 #[tokio::main]
@@ -34,6 +34,7 @@ async fn main() -> Result<()> {
 
     axum::Server::bind(&"0.0.0.0:1066".parse()?)
         .serve(app.into_make_service())
+        .with_graceful_shutdown(shutdown_signal())
         .await?;
 
     Ok(())
@@ -50,6 +51,41 @@ async fn get_counter_val() -> String {
 async fn increment_counter() {
     let counter = COUNTER.get().expect("COUNTER is initialized");
     counter.increment();
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+
+    println!("signal received, starting graceful shutdown");
+
+    println!("saving counter value to file");
+    let counter = COUNTER.get().expect("COUNTER is initialized");
+    let val = counter.get_val();
+    tokio::fs::write("./save", val.to_string())
+        .await
+        .expect("Failed to write to save file");
+
+    println!("bye");
 }
 
 #[derive(Debug, Serialize)]
