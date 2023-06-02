@@ -1,0 +1,15 @@
+[package]
+name = "npm-hate"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+axum = { version = "0.6.18", features = ["ws", "http2", "macros"] }
+axum-macros = "0.3.7"
+color-eyre = "0.6.2"
+serde = { version = "1.0.163", features = ["derive"] }
+tokio = { version = "1.28.2", features = ["full"] }
+tower = { version = "0.4.13", features = ["tracing"] }
+tower-http = { version = "0.4.0", features = ["tracing", "trace"] }
