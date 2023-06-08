@@ -1,19 +1,19 @@
+use axum::http::Method;
 use axum::{
-    debug_handler,
     routing::{get, put},
     Router,
 };
 use color_eyre::Result;
 use std::{path::Path, sync::OnceLock};
-use axum::http::Method;
 use tokio::signal;
 use tower::ServiceBuilder;
+use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing::info;
 use tracing_subscriber::prelude::*;
-use tower_http::cors::{Any, CorsLayer};
 
 mod counter;
+
 use counter::Counter;
 
 static COUNTER: OnceLock<Counter> = OnceLock::new();
@@ -25,12 +25,14 @@ async fn main() -> Result<()> {
     tracing_subscriber::registry().with(tracing_layer).init();
 
     let counter = Counter::read_from_path(Path::new("./save")).await?;
-    COUNTER
-        .set(counter)
-        .expect("You're really fucked up if even this fails");
-
-    let cors = CorsLayer::new().allow_methods(vec![Method::GET, Method::PUT])
+    let counter = Box::leak(Box::new(counter));
+    let cors = CorsLayer::new()
+        .allow_methods(vec![Method::GET, Method::PUT])
         .allow_origin(Any);
+
+
+    let get_counter_val = || async { get_counter_val(counter).await };
+    let increment_counter = || async { increment_counter(counter).await };
 
     let app = Router::new()
         .route("/api/v1/status", get(ok))
@@ -51,16 +53,12 @@ async fn ok() -> () {
     ()
 }
 
-#[debug_handler]
-async fn get_counter_val() -> String {
-    let counter = COUNTER.get().expect("COUNTER is initialized");
+async fn get_counter_val(counter: &'static Counter) -> String {
     let val = counter.get_val();
     val.to_string()
 }
 
-#[debug_handler]
-async fn increment_counter() {
-    let counter = COUNTER.get().expect("COUNTER is initialized");
+async fn increment_counter(counter: &'static Counter) {
     counter.increment();
 }
 
@@ -74,7 +72,7 @@ async fn shutdown_signal() {
     };
 
     #[cfg(unix)]
-    let terminate = async {
+        let terminate = async {
         signal::unix::signal(signal::unix::SignalKind::terminate())
             .expect("failed to install signal handler")
             .recv()
@@ -82,7 +80,7 @@ async fn shutdown_signal() {
     };
 
     #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
+        let terminate = std::future::pending::<()>();
 
     tokio::select! {
         _ = ctrl_c => {},
