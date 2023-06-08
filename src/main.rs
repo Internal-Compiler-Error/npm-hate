@@ -5,11 +5,13 @@ use axum::{
 };
 use color_eyre::Result;
 use std::{path::Path, sync::OnceLock};
+use axum::http::Method;
 use tokio::signal;
 use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
 use tracing::info;
 use tracing_subscriber::prelude::*;
+use tower_http::cors::{Any, CorsLayer};
 
 mod counter;
 use counter::Counter;
@@ -27,17 +29,26 @@ async fn main() -> Result<()> {
         .set(counter)
         .expect("You're really fucked up if even this fails");
 
+    let cors = CorsLayer::new().allow_methods(vec![Method::GET, Method::PUT])
+        .allow_origin(Any);
+
     let app = Router::new()
+        .route("/api/v1/status", get(ok))
         .route("/api/v1/counter", get(get_counter_val))
         .route("/api/v1/counter/increment", put(increment_counter))
-        .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()));
+        .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()))
+        .layer(cors);
 
-    axum::Server::bind(&"0.0.0.0:1066".parse()?)
+    axum::Server::bind(&"127.0.0.1:1066".parse()?)
         .serve(app.into_make_service())
         .with_graceful_shutdown(shutdown_signal())
         .await?;
 
     Ok(())
+}
+
+async fn ok() -> () {
+    ()
 }
 
 #[debug_handler]
