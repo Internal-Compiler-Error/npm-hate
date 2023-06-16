@@ -4,7 +4,7 @@ use axum::{
     Router,
 };
 use color_eyre::Result;
-use std::{path::Path, sync::OnceLock};
+use std::path::Path;
 use tokio::signal;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
@@ -15,8 +15,6 @@ use tracing_subscriber::prelude::*;
 mod counter;
 
 use counter::Counter;
-
-static COUNTER: OnceLock<Counter> = OnceLock::new();
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -41,9 +39,9 @@ async fn main() -> Result<()> {
         .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()))
         .layer(cors);
 
-    axum::Server::bind(&"127.0.0.1:1066".parse()?)
+    axum::Server::bind(&"0.0.0.0:1066".parse()?)
         .serve(app.into_make_service())
-        .with_graceful_shutdown(shutdown_signal())
+        .with_graceful_shutdown(shutdown_signal(counter))
         .await?;
 
     Ok(())
@@ -64,7 +62,7 @@ async fn increment_counter(counter: &'static Counter) {
 
 /// Save our counter to a file when shutdown is called
 #[tracing::instrument]
-async fn shutdown_signal() {
+async fn shutdown_signal(counter: &'static Counter) {
     let ctrl_c = async {
         signal::ctrl_c()
             .await
@@ -90,7 +88,6 @@ async fn shutdown_signal() {
     info!("signal received, starting graceful shutdown");
 
     info!("saving counter value to file");
-    let counter = COUNTER.get().expect("COUNTER is initialized");
     let val = counter.get_val();
     tokio::fs::write("./save", val.to_string())
         .await
