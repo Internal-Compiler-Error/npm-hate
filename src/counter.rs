@@ -20,10 +20,10 @@ impl Counter {
     }
 
     pub fn get_val(&self) -> usize {
-        self.0.load(Ordering::SeqCst)
+        self.0.load(Ordering::Relaxed)
     }
 
     pub fn increment(&self) {
-        self.0.fetch_add(1, Ordering::SeqCst);
+        self.0.fetch_add(1, Ordering::Relaxed);
     }
 }
